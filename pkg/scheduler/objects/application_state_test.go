@@ -27,6 +27,7 @@ import (
 
 	"github.com/apache/yunikorn-core/pkg/common"
 	"github.com/apache/yunikorn-core/pkg/events"
+	"github.com/apache/yunikorn-core/pkg/metrics"
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
@@ -302,4 +303,71 @@ func TestAppStateTransitionEvents(t *testing.T) {
 	isStateChangeEvent(t, appInfo, si.EventRecord_APP_FAILED, records[5])
 	isStateChangeEvent(t, appInfo, si.EventRecord_APP_EXPIRED, records[6])
 	isStateChangeEvent(t, appInfo, si.EventRecord_APP_RESUMING, records[7])
+}
+
+func TestAppStateTransitionMetrics(t *testing.T) {
+
+	// Test New -> Accepted -> Starting -> Running -> Completing-> Completed
+	metrics.GetSchedulerMetrics().Reset()
+	app := newApplication("app-00001", "default", "root.a")
+	totalAppsRunning, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, totalAppsRunning, 0)
+	app.HandleApplicationEvent(RunApplication) // New -> Accepted
+	app.HandleApplicationEvent(RunApplication) // Accepted -> Starting
+	totalAppsRunning, _ = metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, app.CurrentState(), Starting.String())
+	assert.Equal(t, totalAppsRunning, 1)
+	app.HandleApplicationEvent(RunApplication) // Starting -> Running
+	totalAppsRunning, _ = metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, app.CurrentState(), Running.String())
+	assert.Equal(t, totalAppsRunning, 1)
+	app.HandleApplicationEvent(CompleteApplication) // Running -> Completing
+	totalAppsRunning, _ = metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, app.CurrentState(), Completing.String())
+	assert.Equal(t, totalAppsRunning, 0)
+	app.HandleApplicationEvent(CompleteApplication) // Completing -> Completed
+	totalAppsRunning, _ = metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, app.CurrentState(), Completed.String())
+	assert.Equal(t, totalAppsRunning, 0)
+
+	// Test New -> Accepted -> Starting -> Completing -> Running -> Completing-> Completed
+	metrics.GetSchedulerMetrics().Reset()
+	app = newApplication("app-00002", "default", "root.a")
+	totalAppsRunning, _ = metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, totalAppsRunning, 0)
+	app.HandleApplicationEvent(RunApplication) // New -> Accepted
+	app.HandleApplicationEvent(RunApplication) // Accepted -> Starting
+	totalAppsRunning, _ = metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, app.CurrentState(), Starting.String())
+	assert.Equal(t, totalAppsRunning, 1)
+	app.HandleApplicationEvent(CompleteApplication) // Starting -> Completing
+	totalAppsRunning, _ = metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, app.CurrentState(), Completing.String())
+	assert.Equal(t, totalAppsRunning, 0)
+	app.HandleApplicationEvent(RunApplication) // Completing -> Running
+	totalAppsRunning, _ = metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, app.CurrentState(), Running.String())
+	assert.Equal(t, totalAppsRunning, 1)
+	app.HandleApplicationEvent(CompleteApplication) // Running -> Completing
+	app.HandleApplicationEvent(CompleteApplication) // Completing -> Completed
+	totalAppsRunning, _ = metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, app.CurrentState(), Completed.String())
+	assert.Equal(t, totalAppsRunning, 0)
+
+	// Test New -> Accepted -> Starting -> Failing -> Failed
+	metrics.GetSchedulerMetrics().Reset()
+	app = newApplication("app-00003", "default", "root.a")
+	app.HandleApplicationEvent(RunApplication) // New -> Accepted
+	app.HandleApplicationEvent(RunApplication) // Accepted -> Starting
+	totalAppsRunning, _ = metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, app.CurrentState(), Starting.String())
+	assert.Equal(t, totalAppsRunning, 1)
+	app.HandleApplicationEvent(FailApplication) // Starting -> Failing
+	totalAppsRunning, _ = metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, app.CurrentState(), Failing.String())
+	assert.Equal(t, totalAppsRunning, 0)
+	app.HandleApplicationEvent(FailApplication) // Failing -> Failed
+	totalAppsRunning, _ = metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+	assert.Equal(t, app.CurrentState(), Failed.String())
+	assert.Equal(t, totalAppsRunning, 0)
 }

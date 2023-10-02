@@ -80,6 +80,7 @@ type CoreSchedulerMetrics interface {
 	IncAllocatedContainer()
 	AddAllocatedContainers(value int)
 	getAllocatedContainers() (int, error)
+	GetAllocatedContainers() (int, error)
 
 	// Metrics Ops related to ScheduledAllocationFailures
 	IncRejectedContainer()
@@ -94,6 +95,7 @@ type CoreSchedulerMetrics interface {
 	IncReleasedContainer()
 	AddReleasedContainers(value int)
 	getReleasedContainers() (int, error)
+	GetReleasedContainers() (int, error)
 	// Metrics Ops related to totalApplicationsAccepted
 	IncTotalApplicationsAccepted()
 	AddTotalApplicationsAccepted(value int)
@@ -109,6 +111,7 @@ type CoreSchedulerMetrics interface {
 	SubTotalApplicationsRunning(value int)
 	SetTotalApplicationsRunning(value int)
 	getTotalApplicationsRunning() (int, error)
+	GetTotalApplicationsRunning() (int, error)
 
 	// Metrics Ops related to TotalApplicationsFailed
 	IncTotalApplicationsFailed()

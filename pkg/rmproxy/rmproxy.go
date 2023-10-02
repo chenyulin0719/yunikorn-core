@@ -91,6 +91,7 @@ func (rmp *RMProxy) handleUpdateResponseError(rmID string, err error) {
 }
 
 func (rmp *RMProxy) processAllocationUpdateEvent(event *rmevent.RMNewAllocationsEvent) {
+
 	allocationsCount := len(event.Allocations)
 	if allocationsCount != 0 {
 		rmp.RLock()
@@ -99,7 +100,16 @@ func (rmp *RMProxy) processAllocationUpdateEvent(event *rmevent.RMNewAllocations
 			New: event.Allocations,
 		}
 		rmp.triggerUpdateAllocation(event.RmID, response)
+
+		beforeAllocatedCnt, _ := metrics.GetSchedulerMetrics().GetAllocatedContainers()
 		metrics.GetSchedulerMetrics().AddAllocatedContainers(len(event.Allocations))
+		afterAllocatedCnt, _ := metrics.GetSchedulerMetrics().GetAllocatedContainers()
+
+		log.Log(log.RMProxy).Error("### processAllocationUpdateEvent",
+			zap.Int("beforeAllocatedCnt", beforeAllocatedCnt),
+			zap.Int("AddAllocatedContainers", len(event.Allocations)),
+			zap.Int("afterAllocatedCnt", afterAllocatedCnt),
+		)
 	}
 	// Done, notify channel
 	event.Channel <- &rmevent.Result{
@@ -139,14 +149,23 @@ func (rmp *RMProxy) processApplicationUpdateEvent(event *rmevent.RMApplicationUp
 
 func (rmp *RMProxy) processRMReleaseAllocationEvent(event *rmevent.RMReleaseAllocationEvent) {
 	allocationsCount := len(event.ReleasedAllocations)
+
 	if allocationsCount != 0 {
 		rmp.RLock()
 		defer rmp.RUnlock()
 		response := &si.AllocationResponse{
 			Released: event.ReleasedAllocations,
 		}
+		before_releaseCnt, _ := metrics.GetSchedulerMetrics().GetReleasedContainers()
 		rmp.triggerUpdateAllocation(event.RmID, response)
 		metrics.GetSchedulerMetrics().AddReleasedContainers(len(event.ReleasedAllocations))
+		after_releaseCnt, _ := metrics.GetSchedulerMetrics().GetReleasedContainers()
+		log.Log(log.RMProxy).Error("### processRMReleaseAllocationEvent",
+			zap.Int("before_releaseCnt", before_releaseCnt),
+			zap.Int("AddReleasedContainers", len(event.ReleasedAllocations)),
+			zap.Int("after_releaseCnt", after_releaseCnt),
+		)
+
 	}
 
 	// Done, notify channel

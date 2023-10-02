@@ -172,19 +172,49 @@ func NewAppState() *fsm.FSM {
 				app.queue.incRunningApps(app.ApplicationID)
 				app.setStateTimer(app.startTimeout, app.stateMachine.Current(), RunApplication)
 				metrics.GetQueueMetrics(app.queuePath).IncQueueApplicationsRunning()
+
+				before, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
 				metrics.GetSchedulerMetrics().IncTotalApplicationsRunning()
+				after, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+
+				log.Log(log.SchedFSM).Info("### ApplicationCount:",
+					zap.String("state", fmt.Sprintf("enter_%s", Starting.String())),
+					zap.Int("before", before),
+					zap.Int("after", after),
+				)
+
 			},
 			fmt.Sprintf("enter_%s", Resuming.String()): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				metrics.GetQueueMetrics(app.queuePath).DecQueueApplicationsRunning()
+
+				before, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
 				metrics.GetSchedulerMetrics().DecTotalApplicationsRunning()
+				after, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+
+				log.Log(log.SchedFSM).Info("### ApplicationCount:",
+					zap.String("state", fmt.Sprintf("enter_%s", Resuming.String())),
+					zap.Int("before", before),
+					zap.Int("after", after),
+				)
+
 			},
 			fmt.Sprintf("enter_%s", Completing.String()): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				if event.Src == Starting.String() {
 					app.queue.decRunningApps()
 					metrics.GetQueueMetrics(app.queuePath).DecQueueApplicationsRunning()
+
+					before, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
 					metrics.GetSchedulerMetrics().DecTotalApplicationsRunning()
+					after, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+
+					log.Log(log.SchedFSM).Info("### ApplicationCount:",
+						zap.String("state", fmt.Sprintf("enter_%s", Completing.String())),
+						zap.Int("before", before),
+						zap.Int("after", after),
+					)
+
 				}
 				app.setStateTimer(completingTimeout, app.stateMachine.Current(), CompleteApplication)
 			},
@@ -205,11 +235,40 @@ func NewAppState() *fsm.FSM {
 					app.rejectedMessage = event.Args[1].(string) //nolint:errcheck
 				}
 			},
+
+			fmt.Sprintf("enter_%s", Running.String()): func(_ context.Context, event *fsm.Event) {
+				if event.Src == Completing.String() {
+					app := event.Args[0].(*Application) //nolint:errcheck
+					app.queue.incRunningApps(app.ApplicationID)
+					metrics.GetQueueMetrics(app.queuePath).IncQueueApplicationsRunning()
+
+					before, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+					metrics.GetSchedulerMetrics().IncTotalApplicationsRunning()
+					after, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+
+					log.Log(log.SchedFSM).Info("### ApplicationCount:",
+						zap.String("state", fmt.Sprintf("enter_%s", Starting.String())),
+						zap.Int("before", before),
+						zap.Int("after", after),
+					)
+				}
+			},
+
 			fmt.Sprintf("leave_%s", Running.String()): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				app.queue.decRunningApps()
 				metrics.GetQueueMetrics(app.queuePath).DecQueueApplicationsRunning()
+
+				before, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
 				metrics.GetSchedulerMetrics().DecTotalApplicationsRunning()
+				after, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+
+				log.Log(log.SchedFSM).Info("### ApplicationCount:",
+					zap.String("state", fmt.Sprintf("leave_%s", Running.String())),
+					zap.Int("before", before),
+					zap.Int("after", after),
+				)
+
 			},
 			fmt.Sprintf("leave_%s", Completing.String()): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck
@@ -231,6 +290,22 @@ func NewAppState() *fsm.FSM {
 				app := event.Args[0].(*Application) //nolint:errcheck
 				metrics.GetQueueMetrics(app.queuePath).IncQueueApplicationsFailed()
 				metrics.GetSchedulerMetrics().IncTotalApplicationsFailed()
+
+				if event.Src == Starting.String() {
+					app.queue.decRunningApps()
+					metrics.GetQueueMetrics(app.queuePath).DecQueueApplicationsRunning()
+
+					before, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+					metrics.GetSchedulerMetrics().DecTotalApplicationsRunning()
+					after, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+
+					log.Log(log.SchedFSM).Info("### ApplicationCount:",
+						zap.String("state", fmt.Sprintf("enter_%s", Starting.String())),
+						zap.Int("before", before),
+						zap.Int("after", after),
+					)
+				}
+
 			},
 			fmt.Sprintf("enter_%s", Failed.String()): func(_ context.Context, event *fsm.Event) {
 				app := event.Args[0].(*Application) //nolint:errcheck

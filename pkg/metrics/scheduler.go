@@ -206,6 +206,15 @@ func (m *SchedulerMetrics) getAllocatedContainers() (int, error) {
 	return -1, err
 }
 
+func (m *SchedulerMetrics) GetAllocatedContainers() (int, error) {
+	metricDto := &dto.Metric{}
+	err := m.containerAllocation.With(prometheus.Labels{"state": "allocated"}).Write(metricDto)
+	if err == nil {
+		return int(*metricDto.Counter.Value), nil
+	}
+	return -1, err
+}
+
 func (m *SchedulerMetrics) IncReleasedContainer() {
 	m.containerAllocation.With(prometheus.Labels{"state": "released"}).Inc()
 }
@@ -215,6 +224,15 @@ func (m *SchedulerMetrics) AddReleasedContainers(value int) {
 }
 
 func (m *SchedulerMetrics) getReleasedContainers() (int, error) {
+	metricDto := &dto.Metric{}
+	err := m.containerAllocation.With(prometheus.Labels{"state": "released"}).Write(metricDto)
+	if err == nil {
+		return int(*metricDto.Counter.Value), nil
+	}
+	return -1, err
+}
+
+func (m *SchedulerMetrics) GetReleasedContainers() (int, error) {
 	metricDto := &dto.Metric{}
 	err := m.containerAllocation.With(prometheus.Labels{"state": "released"}).Write(metricDto)
 	if err == nil {
@@ -285,6 +303,15 @@ func (m *SchedulerMetrics) SetTotalApplicationsRunning(value int) {
 }
 
 func (m *SchedulerMetrics) getTotalApplicationsRunning() (int, error) {
+	metricDto := &dto.Metric{}
+	err := m.application.With(prometheus.Labels{"state": "running"}).Write(metricDto)
+	if err == nil {
+		return int(*metricDto.Gauge.Value), nil
+	}
+	return -1, err
+}
+
+func (m *SchedulerMetrics) GetTotalApplicationsRunning() (int, error) {
 	metricDto := &dto.Metric{}
 	err := m.application.With(prometheus.Labels{"state": "running"}).Write(metricDto)
 	if err == nil {

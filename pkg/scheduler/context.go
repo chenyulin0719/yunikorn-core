@@ -555,7 +555,16 @@ func (cc *ClusterContext) handleRMUpdateApplicationEvent(event *rmevent.RMUpdate
 	}
 	// Update metrics with removed applications
 	if len(request.Remove) > 0 {
+		before, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
 		metrics.GetSchedulerMetrics().SubTotalApplicationsRunning(len(request.Remove))
+		after, _ := metrics.GetSchedulerMetrics().GetTotalApplicationsRunning()
+
+		log.Log(log.SchedContext).Info("### ApplicationCount:",
+			zap.String("state", fmt.Sprintf("### handleRMUpdateApplicationEvent")),
+			zap.Int("before", before),
+			zap.Int("after", after),
+		)
+
 		// ToDO: need to improve this once we have state in YuniKorn for apps.
 		metrics.GetSchedulerMetrics().AddTotalApplicationsCompleted(len(request.Remove))
 		for _, app := range request.Remove {
