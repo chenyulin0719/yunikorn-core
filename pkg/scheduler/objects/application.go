@@ -1263,6 +1263,7 @@ func (sa *Application) tryReservedAllocate(headRoom *resources.Resource, nodeIte
 		// Do we need a specific node?
 		if ask.GetRequiredNode() != "" {
 			if !reserve.node.CanAllocate(ask.GetAllocatedResource()) && !ask.HasTriggeredPreemption() {
+
 				sa.tryRequiredNodePreemption(reserve, ask)
 				continue
 			}
@@ -1904,6 +1905,10 @@ func (sa *Application) executeTerminatedCallback() {
 // and at least one allocation has been released.
 // No locking must be called while holding the lock
 func (sa *Application) notifyRMAllocationReleased(rmID string, released []*Allocation, terminationType si.TerminationType, message string) {
+
+	log.Log(log.SchedApplication).Error("### Release count (notifyRMAllocationReleased):",
+		zap.Int("released", len(released)))
+
 	// only generate event if needed
 	if len(released) == 0 || sa.rmEventHandler == nil {
 		return
@@ -1928,7 +1933,7 @@ func (sa *Application) notifyRMAllocationReleased(rmID string, released []*Alloc
 	// Wait from channel
 	result := <-c
 	if result.Succeeded {
-		log.Log(log.SchedApplication).Debug("Successfully synced shim on released allocations. response: " + result.Reason)
+		log.Log(log.SchedApplication).Debug("Successfully synced shim on released allocations. (In Application) response: " + result.Reason)
 	} else {
 		log.Log(log.SchedApplication).Info("failed to sync shim on released allocations")
 	}

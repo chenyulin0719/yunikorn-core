@@ -91,6 +91,7 @@ func (rmp *RMProxy) handleUpdateResponseError(rmID string, err error) {
 }
 
 func (rmp *RMProxy) processAllocationUpdateEvent(event *rmevent.RMNewAllocationsEvent) {
+
 	allocationsCount := len(event.Allocations)
 	if allocationsCount != 0 {
 		rmp.RLock()
@@ -99,7 +100,18 @@ func (rmp *RMProxy) processAllocationUpdateEvent(event *rmevent.RMNewAllocations
 			New: event.Allocations,
 		}
 		rmp.triggerUpdateAllocation(event.RmID, response)
+
+		beforeAllocatedCnt, _ := metrics.GetSchedulerMetrics().GetAllocatedContainers()
+		beforeReleaseCnt, _ := metrics.GetSchedulerMetrics().GetReleasedContainers()
 		metrics.GetSchedulerMetrics().AddAllocatedContainers(len(event.Allocations))
+		afterAllocatedCnt, _ := metrics.GetSchedulerMetrics().GetAllocatedContainers()
+		afterReleaseCnt, _ := metrics.GetSchedulerMetrics().GetReleasedContainers()
+
+		log.Log(log.RMProxy).Error("### Allocate Event",
+			zap.String("AllocatedCnt", fmt.Sprintf("%v -> %v", beforeAllocatedCnt, afterAllocatedCnt)),
+			zap.String("ReleaseCnt", fmt.Sprintf("%v -> %v", beforeReleaseCnt, afterReleaseCnt)),
+			zap.Int("len(event.Allocations)", len(event.Allocations)),
+		)
 	}
 	// Done, notify channel
 	event.Channel <- &rmevent.Result{
@@ -139,14 +151,32 @@ func (rmp *RMProxy) processApplicationUpdateEvent(event *rmevent.RMApplicationUp
 
 func (rmp *RMProxy) processRMReleaseAllocationEvent(event *rmevent.RMReleaseAllocationEvent) {
 	allocationsCount := len(event.ReleasedAllocations)
+
 	if allocationsCount != 0 {
 		rmp.RLock()
 		defer rmp.RUnlock()
 		response := &si.AllocationResponse{
 			Released: event.ReleasedAllocations,
 		}
+		beforeAllocatedCnt, _ := metrics.GetSchedulerMetrics().GetAllocatedContainers()
+		beforeReleaseCnt, _ := metrics.GetSchedulerMetrics().GetReleasedContainers()
 		rmp.triggerUpdateAllocation(event.RmID, response)
+
+		// After preemption triggered, we should only increase release container after shim detected it.
+		// And the TerminationType will be STOPPED_BY_RM.
+		// if event.ReleasedAllocations[0].TerminationType != si.TerminationType_PREEMPTED_BY_SCHEDULER {
+		// 	metrics.GetSchedulerMetrics().AddReleasedContainers(len(event.ReleasedAllocations))
+		// }
 		metrics.GetSchedulerMetrics().AddReleasedContainers(len(event.ReleasedAllocations))
+		afterAllocatedCnt, _ := metrics.GetSchedulerMetrics().GetAllocatedContainers()
+		afterReleaseCnt, _ := metrics.GetSchedulerMetrics().GetReleasedContainers()
+
+		log.Log(log.RMProxy).Error("### Release Event",
+			zap.String("AllocatedCnt", fmt.Sprintf("TerminationType: %v", event.ReleasedAllocations[0].TerminationType)),
+			zap.String("AllocatedCnt", fmt.Sprintf("%v -> %v", beforeAllocatedCnt, afterAllocatedCnt)),
+			zap.String("ReleaseCnt", fmt.Sprintf("%v -> %v", beforeReleaseCnt, afterReleaseCnt)),
+			zap.Int("len(event.ReleasedAllocations)", len(event.ReleasedAllocations)),
+		)
 	}
 
 	// Done, notify channel

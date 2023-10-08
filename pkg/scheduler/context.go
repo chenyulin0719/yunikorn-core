@@ -748,6 +748,10 @@ func (cc *ClusterContext) handleRMUpdateAllocationEvent(event *rmevent.RMUpdateA
 		}
 		if len(request.Releases.AllocationsToRelease) > 0 {
 			cc.processAllocationReleases(request.Releases.AllocationsToRelease, request.RmID)
+
+			log.Log(log.SchedContext).Error("### in handleRMUpdateAllocationEvent",
+				zap.Int("len(request.Releases.AllocationsToRelease)", len(request.Releases.AllocationsToRelease)),
+			)
 		}
 	}
 }
@@ -862,10 +866,14 @@ func (cc *ClusterContext) processAskReleases(releases []*si.AllocationAskRelease
 }
 
 func (cc *ClusterContext) processAllocationReleases(releases []*si.AllocationRelease, rmID string) {
+
 	for _, toRelease := range releases {
 		partition := cc.GetPartition(toRelease.PartitionName)
 		if partition != nil {
+
 			allocs, confirmed := partition.removeAllocation(toRelease)
+			log.Log(log.SchedContext).Error("### (cc *ClusterContext) processAllocationReleases ",
+				zap.Int("len(allocs)", len(allocs)))
 			// notify the RM of the exact released allocations
 			if len(allocs) > 0 {
 				cc.notifyRMAllocationReleased(rmID, allocs, si.TerminationType_STOPPED_BY_RM, "allocation remove as per RM request")
@@ -932,7 +940,7 @@ func (cc *ClusterContext) notifyRMAllocationReleased(rmID string, released []*ob
 	// Wait from channel
 	result := <-c
 	if result.Succeeded {
-		log.Log(log.SchedContext).Debug("Successfully synced shim on released allocations. response: " + result.Reason)
+		log.Log(log.SchedContext).Error("Successfully synced shim on released allocations. (In ClusterContext) response: " + result.Reason)
 	} else {
 		log.Log(log.SchedContext).Info("failed to sync shim on released allocations")
 	}
