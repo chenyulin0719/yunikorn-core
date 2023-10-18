@@ -116,7 +116,7 @@ func (m *AppPlacementManager) PlaceApplication(app *objects.Application) error {
 	var aclCheck bool
 	var err error
 	for _, checkRule := range m.rules {
-		log.Log(log.Config).Debug("Executing rule for placing application",
+		log.Log(log.Config).Error("Executing rule for placing application",
 			zap.String("ruleName", checkRule.getName()),
 			zap.String("application", app.ApplicationID))
 		queueName, aclCheck, err = checkRule.placeApplication(app, m.queueFn)

@@ -46,6 +46,17 @@ func (rr *recoveryRule) initialise(conf configs.PlacementRule) error {
 
 func (rr *recoveryRule) placeApplication(app *objects.Application, _ func(string) *objects.Queue) (string, bool, error) {
 	// only forced applications should resolve to the recovery queue
+
+	// log.Log(log.Config).Info("### In recovery_rule: ",
+	// 	zap.Bool("!app.IsCreateForced()", !app.IsCreateForced()))
+	// if app.ApplicationID == "yunikorn-spark-operator-autogen" {
+	// 	queueName := common.RecoveryQueueFull
+	// 	log.Log(log.Config).Info("### My Recovery rule application placed",
+	// 		zap.String("application", app.ApplicationID),
+	// 		zap.String("queue", queueName))
+	// 	return queueName, false, nil
+	// }
+
 	if !app.IsCreateForced() {
 		return "", false, nil
 	}

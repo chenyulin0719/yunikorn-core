@@ -528,10 +528,14 @@ func (pc *PartitionContext) GetNode(nodeID string) *objects.Node {
 // Add the node to the partition and process the allocations that are reported by the node.
 // NOTE: this is a lock free call. It must NOT be called holding the PartitionContext lock.
 func (pc *PartitionContext) AddNode(node *objects.Node, existingAllocations []*objects.Allocation) error {
+	// log.Log(log.SchedPartition).Error("### in AddNode",
+	// 	zap.Int("existingAllocations:", len(existingAllocations)),
+	// 	zap.Int("existingAllocations:", len(existingAllocations)))
+
 	if node == nil {
 		return fmt.Errorf("cannot add 'nil' node to partition %s", pc.Name)
 	}
-	log.Log(log.SchedPartition).Info("adding node to partition",
+	log.Log(log.SchedPartition).Info("### adding node to partition",
 		zap.String("partition", pc.Name),
 		zap.String("nodeID", node.NodeID))
 	if pc.isDraining() || pc.isStopped() {
@@ -636,7 +640,7 @@ func (pc *PartitionContext) removeNodeFromList(nodeID string) *objects.Node {
 // other nodes.
 // NOTE: this is a lock free call. It must NOT be called holding the PartitionContext lock.
 func (pc *PartitionContext) removeNode(nodeID string) ([]*objects.Allocation, []*objects.Allocation) {
-	log.Log(log.SchedPartition).Info("removing node from partition",
+	log.Log(log.SchedPartition).Info("### removing node from partition",
 		zap.String("partition", pc.Name),
 		zap.String("nodeID", nodeID))
 

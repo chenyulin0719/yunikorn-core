@@ -360,6 +360,10 @@ func (rmp *RMProxy) UpdateApplication(request *si.ApplicationRequest) error {
 				app.PartitionName = common.GetNormalizedPartitionName(app.PartitionName, request.RmID)
 			}
 		}
+
+		log.Log(log.Config).Info("### Shim: UpdateApplication",
+			zap.Int("len(request.New)", len(request.New)),
+			zap.Int("len(request.Remove)", len(request.Remove)))
 		rmp.EventHandlers.SchedulerEventHandler.HandleEvent(&rmevent.RMUpdateApplicationEvent{Request: request})
 	}()
 	return nil

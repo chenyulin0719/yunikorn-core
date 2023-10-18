@@ -99,11 +99,15 @@ func (pr *providedRule) placeApplication(app *objects.Application, queueFn func(
 		// Make it a fully qualified queue
 		queueName = parentName + configs.DOT + replaceDot(queueName)
 	}
-	log.Log(log.Config).Debug("Provided rule intermediate result",
-		zap.String("application", app.ApplicationID),
-		zap.String("queue", queueName))
+
 	// get the queue object
 	queue := queueFn(queueName)
+
+	log.Log(log.Config).Debug("Provided rule intermediate result",
+		zap.String("application", app.ApplicationID),
+		zap.String("queue", queueName),
+		zap.Bool("!pr.create:", !pr.create),
+		zap.Bool("queue == nil:", queue == nil))
 	// if we cannot create the queue must exist
 	if !pr.create && queue == nil {
 		return "", aclCheck, nil
