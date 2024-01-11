@@ -185,6 +185,8 @@ func (sn *Node) GetOccupiedResource() *resources.Resource {
 }
 
 func (sn *Node) SetOccupiedResource(occupiedResource *resources.Resource) {
+	log.Log(log.SchedNode).Info(fmt.Sprintf("### SetOccupiedResource, NodeID:%v, occupiedResource: %v", sn.NodeID, occupiedResource))
+
 	defer sn.notifyListeners()
 	sn.Lock()
 	defer sn.Unlock()
@@ -201,8 +203,11 @@ func (sn *Node) SetOccupiedResource(occupiedResource *resources.Resource) {
 // this call assumes the caller already acquires the lock.
 func (sn *Node) refreshAvailableResource() {
 	sn.availableResource = sn.totalResource.Clone()
+	log.Log(log.SchedNode).Info(fmt.Sprintf("### refreshAvailableResource, before (availableResource: %v, allocatedResource: %v, occupiedResource:%v )", sn.availableResource, sn.allocatedResource, sn.occupiedResource))
 	sn.availableResource.SubFrom(sn.allocatedResource)
 	sn.availableResource.SubFrom(sn.occupiedResource)
+	log.Log(log.SchedNode).Info(fmt.Sprintf("### refreshAvailableResource, after (availableResource: %v )", sn.availableResource))
+
 	// check if any quantity is negative: a nil resource is all 0's
 	if !resources.StrictlyGreaterThanOrEquals(sn.availableResource, nil) {
 		log.Log(log.SchedNode).Warn("Node update triggered over allocated node",
