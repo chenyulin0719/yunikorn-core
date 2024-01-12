@@ -375,20 +375,18 @@ func (rmp *RMProxy) UpdateNode(request *si.NodeRequest) error {
 	if rmp.GetResourceManagerCallback(request.RmID) == nil {
 		return fmt.Errorf("received NodeRequest, but RmID=\"%s\" not registered", request.RmID)
 	}
-	if len(request.Nodes) > 0 {
-		for _, node := range request.Nodes {
-			if len(node.GetAttributes()) == 0 {
-				node.Attributes = map[string]string{}
+	go func() {
+		if len(request.Nodes) > 0 {
+			for _, node := range request.Nodes {
+				if len(node.GetAttributes()) == 0 {
+					node.Attributes = map[string]string{}
+				}
+				partition := node.Attributes[siCommon.NodePartition]
+				node.Attributes[siCommon.NodePartition] = common.GetNormalizedPartitionName(partition, request.RmID)
 			}
-			partition := node.Attributes[siCommon.NodePartition]
-			node.Attributes[siCommon.NodePartition] = common.GetNormalizedPartitionName(partition, request.RmID)
-
-			log.Log(log.SchedNode).Info(fmt.Sprintf("### in RMProxy UpdateNode, %v,%v", node.NodeID, node.GetOccupiedResource()))
 		}
-	}
-
-	rmp.EventHandlers.SchedulerEventHandler.HandleEvent(&rmevent.RMUpdateNodeEvent{Request: request})
-
+		rmp.EventHandlers.SchedulerEventHandler.HandleEvent(&rmevent.RMUpdateNodeEvent{Request: request})
+	}()
 	return nil
 }
 
