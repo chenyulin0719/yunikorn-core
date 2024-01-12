@@ -23,7 +23,6 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -376,26 +375,20 @@ func (rmp *RMProxy) UpdateNode(request *si.NodeRequest) error {
 	if rmp.GetResourceManagerCallback(request.RmID) == nil {
 		return fmt.Errorf("received NodeRequest, but RmID=\"%s\" not registered", request.RmID)
 	}
-	go func() {
-		if len(request.Nodes) > 0 {
-			for _, node := range request.Nodes {
-				if len(node.GetAttributes()) == 0 {
-					node.Attributes = map[string]string{}
-				}
-				partition := node.Attributes[siCommon.NodePartition]
-				node.Attributes[siCommon.NodePartition] = common.GetNormalizedPartitionName(partition, request.RmID)
-
-				log.Log(log.SchedNode).Info(fmt.Sprintf("### in RMProxy UpdateNode, %v,%v", node.NodeID, node.GetOccupiedResource()))
+	if len(request.Nodes) > 0 {
+		for _, node := range request.Nodes {
+			if len(node.GetAttributes()) == 0 {
+				node.Attributes = map[string]string{}
 			}
-		}
+			partition := node.Attributes[siCommon.NodePartition]
+			node.Attributes[siCommon.NodePartition] = common.GetNormalizedPartitionName(partition, request.RmID)
 
-		if request.Nodes != nil && request.Nodes[0] != nil && request.Nodes[0].OccupiedResource != nil && request.Nodes[0].OccupiedResource.Resources != nil && request.Nodes[0].OccupiedResource.Resources["pods"] != nil && request.Nodes[0].OccupiedResource.Resources["pods"].Value == 1 {
-			log.Log(log.RMProxy).Info(fmt.Sprintf("### Sleep 2 sec...  %v", request))
-			time.Sleep(time.Duration(2) * time.Second)
+			log.Log(log.SchedNode).Info(fmt.Sprintf("### in RMProxy UpdateNode, %v,%v", node.NodeID, node.GetOccupiedResource()))
 		}
+	}
 
-		rmp.EventHandlers.SchedulerEventHandler.HandleEvent(&rmevent.RMUpdateNodeEvent{Request: request})
-	}()
+	rmp.EventHandlers.SchedulerEventHandler.HandleEvent(&rmevent.RMUpdateNodeEvent{Request: request})
+
 	return nil
 }
 
