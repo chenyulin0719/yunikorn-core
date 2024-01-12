@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -387,6 +388,12 @@ func (rmp *RMProxy) UpdateNode(request *si.NodeRequest) error {
 				log.Log(log.SchedNode).Info(fmt.Sprintf("### in RMProxy UpdateNode, %v,%v", node.NodeID, node.GetOccupiedResource()))
 			}
 		}
+
+		if request.Nodes != nil && request.Nodes[0] != nil && request.Nodes[0].OccupiedResource != nil && request.Nodes[0].OccupiedResource.Resources != nil && request.Nodes[0].OccupiedResource.Resources["pods"] != nil && request.Nodes[0].OccupiedResource.Resources["pods"].Value == 1 {
+			log.Log(log.RMProxy).Info(fmt.Sprintf("### Sleep 2 sec...  %v", request))
+			time.Sleep(time.Duration(2) * time.Second)
+		}
+
 		rmp.EventHandlers.SchedulerEventHandler.HandleEvent(&rmevent.RMUpdateNodeEvent{Request: request})
 	}()
 	return nil
