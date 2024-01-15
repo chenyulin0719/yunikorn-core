@@ -389,9 +389,19 @@ func (rmp *RMProxy) UpdateNode(request *si.NodeRequest) error {
 			}
 		}
 
-		if request.Nodes != nil && request.Nodes[0] != nil && request.Nodes[0].OccupiedResource != nil && request.Nodes[0].OccupiedResource.Resources != nil && request.Nodes[0].OccupiedResource.Resources["pods"] != nil && request.Nodes[0].OccupiedResource.Resources["pods"].Value == 1 {
-			log.Log(log.RMProxy).Info(fmt.Sprintf("### Sleep 2 sec...  %v", request))
-			time.Sleep(time.Duration(2) * time.Second)
+		if request.Nodes != nil {
+			if len(request.Nodes) != 0 {
+				if request.Nodes[0].OccupiedResource != nil {
+					if request.Nodes[0].OccupiedResource.Resources != nil {
+						if request.Nodes[0].OccupiedResource.Resources["pods"] != nil {
+							if request.Nodes[0].OccupiedResource.Resources["pods"].Value == 1 {
+								log.Log(log.RMProxy).Info(fmt.Sprintf("### Sleep 2 sec...  %v", request))
+								time.Sleep(time.Duration(2) * time.Second)
+							}
+						}
+					}
+				}
+			}
 		}
 
 		rmp.EventHandlers.SchedulerEventHandler.HandleEvent(&rmevent.RMUpdateNodeEvent{Request: request})
