@@ -575,7 +575,7 @@ func TestUpdateResources(t *testing.T) {
 	}
 
 	occupied := resources.NewResourceFromMap(map[string]resources.Quantity{"first": 1, "second": 1})
-	node.SetOccupiedResource(occupied)
+	node.SetOccupiedResource(occupied, "1")
 	if !resources.Equals(occupied, node.GetOccupiedResource()) {
 		t.Errorf("occupied resources should have been updated to: %s, got %s", occupied, node.GetOccupiedResource())
 	}
@@ -597,7 +597,7 @@ func TestUpdateResources(t *testing.T) {
 
 	// over allocate available should go negative and no error
 	occupied = resources.NewResourceFromMap(map[string]resources.Quantity{"first": 2, "second": 10})
-	node.SetOccupiedResource(occupied)
+	node.SetOccupiedResource(occupied, "2")
 	if !resources.Equals(occupied, node.GetOccupiedResource()) {
 		t.Errorf("occupied resources should have been updated to: %s, got %s", occupied, node.GetOccupiedResource())
 	}
@@ -622,7 +622,7 @@ func TestUpdateResources(t *testing.T) {
 	}
 	// set occupied and make sure available changes
 	occupied = resources.NewResourceFromMap(map[string]resources.Quantity{"first": 3, "second": 1})
-	node.SetOccupiedResource(occupied)
+	node.SetOccupiedResource(occupied, "3")
 	if !resources.Equals(occupied, node.GetOccupiedResource()) {
 		t.Errorf("occupied resources should have been updated to: %s, got %s", occupied, node.GetOccupiedResource())
 	}
@@ -735,7 +735,7 @@ func TestNodeEvents(t *testing.T) {
 	assert.Equal(t, si.EventRecord_NODE_ALLOC, event.EventChangeDetail)
 
 	mockEvents.Reset()
-	node.SetOccupiedResource(resources.NewResourceFromMap(map[string]resources.Quantity{"cpu": 20, "memory": 20}))
+	node.SetOccupiedResource(resources.NewResourceFromMap(map[string]resources.Quantity{"cpu": 20, "memory": 20}), "3")
 	event = mockEvents.events[0]
 	assert.Equal(t, si.EventRecord_NODE, event.Type)
 	assert.Equal(t, si.EventRecord_SET, event.EventChangeType)

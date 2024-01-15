@@ -636,6 +636,9 @@ func (cc *ClusterContext) addNode(nodeInfo *si.NodeInfo, schedulable bool) error
 // updateNode updates an existing node of the cluster.
 // nil nodeInfo objects must be filtered out before calling this function
 func (cc *ClusterContext) updateNode(nodeInfo *si.NodeInfo) {
+
+	log.Log(log.SchedContext).Info(fmt.Sprintf("### updateNode, nodeInfo: %v, nodeInfo.Action: %v", nodeInfo, nodeInfo.Action))
+
 	var partition *PartitionContext
 	if p, ok := nodeInfo.Attributes[siCommon.NodePartition]; ok {
 		partition = cc.GetPartition(p)
@@ -687,7 +690,7 @@ func (cc *ClusterContext) updateNode(nodeInfo *si.NodeInfo) {
 			partition.updatePartitionResource(node.SetCapacity(resources.NewResourceFromProto(sr)))
 		}
 		if or := nodeInfo.OccupiedResource; or != nil {
-			node.SetOccupiedResource(resources.NewResourceFromProto(or))
+			node.SetOccupiedResource(resources.NewResourceFromProto(or), nodeInfo.Attributes[siCommon.NodeLastUpdateAttribute])
 		}
 	case si.NodeInfo_DRAIN_NODE:
 		if node.IsSchedulable() {

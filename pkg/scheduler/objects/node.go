@@ -47,14 +47,15 @@ type Node struct {
 	Partition string
 
 	// Private fields need protection
-	attributes        map[string]string
-	totalResource     *resources.Resource
-	occupiedResource  *resources.Resource
-	allocatedResource *resources.Resource
-	availableResource *resources.Resource
-	allocations       map[string]*Allocation
-	schedulable       bool
-	ready             bool
+	attributes          map[string]string
+	totalResource       *resources.Resource
+	occupiedResource    *resources.Resource
+	lastUpdatedSequence uint64
+	allocatedResource   *resources.Resource
+	availableResource   *resources.Resource
+	allocations         map[string]*Allocation
+	schedulable         bool
+	ready               bool
 
 	reservations map[string]*reservation // a map of reservations
 	listeners    []NodeListener          // a list of node listeners
@@ -77,15 +78,16 @@ func NewNode(proto *si.NodeInfo) *Node {
 		ready = true
 	}
 	sn := &Node{
-		NodeID:            proto.NodeID,
-		reservations:      make(map[string]*reservation),
-		totalResource:     resources.NewResourceFromProto(proto.SchedulableResource),
-		allocatedResource: resources.NewResource(),
-		occupiedResource:  resources.NewResourceFromProto(proto.OccupiedResource),
-		allocations:       make(map[string]*Allocation),
-		schedulable:       true,
-		listeners:         make([]NodeListener, 0),
-		ready:             ready,
+		NodeID:              proto.NodeID,
+		reservations:        make(map[string]*reservation),
+		totalResource:       resources.NewResourceFromProto(proto.SchedulableResource),
+		allocatedResource:   resources.NewResource(),
+		occupiedResource:    resources.NewResourceFromProto(proto.OccupiedResource),
+		lastUpdatedSequence: 0,
+		allocations:         make(map[string]*Allocation),
+		schedulable:         true,
+		listeners:           make([]NodeListener, 0),
+		ready:               ready,
 	}
 	sn.nodeEvents = newNodeEvents(sn, events.GetEventSystem())
 	// initialise available resources
@@ -184,17 +186,30 @@ func (sn *Node) GetOccupiedResource() *resources.Resource {
 	return sn.occupiedResource.Clone()
 }
 
-func (sn *Node) SetOccupiedResource(occupiedResource *resources.Resource) {
+func (sn *Node) SetOccupiedResource(occupiedResource *resources.Resource, nodeLastUpdateAttribute string) {
 	log.Log(log.SchedNode).Info(fmt.Sprintf("### SetOccupiedResource, NodeID:%v, occupiedResource: %v", sn.NodeID, occupiedResource))
 
 	defer sn.notifyListeners()
 	sn.Lock()
 	defer sn.Unlock()
+
+	nodeLastUpdatedSequence, err := strconv.ParseUint(nodeLastUpdateAttribute, 10, 64)
+	if err != nil {
+		nodeLastUpdatedSequence = 0
+	}
+
+	if sn.lastUpdatedSequence > nodeLastUpdatedSequence {
+		log.Log(log.SchedNode).Info(fmt.Sprintf("### skip updating occupiedResource, NodeID:%v, occupiedResource: %v, sn.lastUpdatedSequence: %v, nodeLastUpdatedSequence: %v", sn.NodeID, occupiedResource, sn.lastUpdatedSequence, nodeLastUpdatedSequence))
+		return
+	}
+
 	if resources.Equals(sn.occupiedResource, occupiedResource) {
 		log.Log(log.SchedNode).Debug("skip updating occupiedResource, not changed")
 		return
 	}
+
 	sn.occupiedResource = occupiedResource
+	sn.lastUpdatedSequence = nodeLastUpdatedSequence
 	sn.nodeEvents.sendNodeOccupiedResourceChangedEvent()
 	sn.refreshAvailableResource()
 }

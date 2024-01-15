@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -385,8 +386,30 @@ func (rmp *RMProxy) UpdateNode(request *si.NodeRequest) error {
 				node.Attributes[siCommon.NodePartition] = common.GetNormalizedPartitionName(partition, request.RmID)
 			}
 		}
+
+		if request.Nodes != nil {
+			if len(request.Nodes) != 0 {
+				if request.Nodes[0].OccupiedResource != nil {
+					if request.Nodes[0].OccupiedResource.Resources != nil {
+						if request.Nodes[0].OccupiedResource.Resources["pods"] != nil {
+							if request.Nodes[0].OccupiedResource.Resources["pods"].Value == 1 {
+								log.Log(log.RMProxy).Info(fmt.Sprintf("### Sleep 2 sec...  %v", request))
+								time.Sleep(time.Duration(2) * time.Second)
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// rand.Seed(time.Now().UnixNano())
+		// sleepTime := rand.Intn(2) * 2
+		// log.Log(log.RMProxy).Info(fmt.Sprintf("### Sleep %v sec...  %v", sleepTime, request))
+		// time.Sleep(time.Duration(sleepTime) * time.Second)
+
 		rmp.EventHandlers.SchedulerEventHandler.HandleEvent(&rmevent.RMUpdateNodeEvent{Request: request})
 	}()
+
 	return nil
 }
 
