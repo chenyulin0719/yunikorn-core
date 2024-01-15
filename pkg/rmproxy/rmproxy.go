@@ -382,8 +382,6 @@ func (rmp *RMProxy) UpdateNode(request *si.NodeRequest) error {
 			}
 			partition := node.Attributes[siCommon.NodePartition]
 			node.Attributes[siCommon.NodePartition] = common.GetNormalizedPartitionName(partition, request.RmID)
-
-			log.Log(log.SchedNode).Info(fmt.Sprintf("### in RMProxy UpdateNode, %v,%v", node.NodeID, node.GetOccupiedResource()))
 		}
 	}
 
