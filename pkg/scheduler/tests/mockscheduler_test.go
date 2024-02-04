@@ -92,19 +92,20 @@ func (m *mockScheduler) Stop() {
 	}
 }
 
-func (m *mockScheduler) addNode(nodeID string, resource *si.Resource) error {
-	return m.proxy.UpdateNode(&si.NodeRequest{
-		Nodes: []*si.NodeInfo{
-			{
-				NodeID:              nodeID,
-				Attributes:          map[string]string{},
-				SchedulableResource: resource,
-				Action:              si.NodeInfo_CREATE,
-			},
-		},
-		RmID: m.rmID,
-	})
-}
+// func (m *mockScheduler) addNode(nodeID string, resource *si.Resource) error {
+// 	return m.proxy.UpdateNode(&si.NodeRequest{
+// 		Nodes: []*si.NodeInfo{
+// 			{
+// 				NodeID:              nodeID,
+// 				Attributes:          map[string]string{},
+// 				SchedulableResource: resource,
+// 				Action:              si.NodeInfo_CREATE,
+// 			},
+// 		},
+// 		RmID: m.rmID,
+// 	})
+// }
+// ### NOTE =>  To check could we replace si.NodeInfo_CREATE by si.NodeInfo_CREATE_DRAIN
 
 func (m *mockScheduler) removeNode(nodeID string) error {
 	return m.proxy.UpdateNode(&si.NodeRequest{

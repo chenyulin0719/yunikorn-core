@@ -268,9 +268,10 @@ func (cc *ClusterContext) processNodes(request *si.NodeRequest) {
 			create := false
 			schedulable := false
 			switch nodeInfo.Action {
-			case si.NodeInfo_CREATE:
-				create = true
-				schedulable = true
+			// case si.NodeInfo_CREATE:
+			// 	create = true
+			// 	schedulable = true
+			// ### NOTE =>  To rewrite it
 			case si.NodeInfo_CREATE_DRAIN:
 				create = true
 			}

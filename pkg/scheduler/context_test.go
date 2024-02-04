@@ -139,34 +139,6 @@ func TestContext_UpdateNode(t *testing.T) {
 	assert.Assert(t, !node.IsSchedulable(), "node should be marked as unschedulable")
 }
 
-func TestContext_AddNode(t *testing.T) {
-	context := createTestContext(t, pName)
-
-	n := &si.NodeInfo{
-		NodeID:              "test-1",
-		Action:              si.NodeInfo_CREATE,
-		Attributes:          map[string]string{"si/node-partition": "unknown"},
-		SchedulableResource: &si.Resource{Resources: map[string]*si.Quantity{"first": {Value: 10}}},
-	}
-	err := context.addNode(n, true)
-	if err == nil {
-		t.Fatalf("unknown node partition should have failed the node add")
-	}
-	n.Attributes = map[string]string{"si/node-partition": pName}
-	err = context.addNode(n, true)
-	assert.NilError(t, err, "unexpected error returned adding node")
-	partition := context.GetPartition(pName)
-	if partition == nil {
-		t.Fatalf("partition should have been found")
-	}
-	assert.Equal(t, 1, len(partition.GetNodes()), "expected node not found on partition")
-	// add same node again should show an error
-	err = context.addNode(n, true)
-	if err == nil {
-		t.Fatalf("existing node addition should have failed")
-	}
-}
-
 func TestContext_AddNodeDrained(t *testing.T) {
 	context := createTestContext(t, pName)
 
@@ -246,27 +218,28 @@ func TestContext_AddRMBuildInformation(t *testing.T) {
 	assert.Equal(t, context.rmInfo[rmID2].RMBuildInformation["buildVersion"], buildInfoMap3["buildVersion"])
 }
 
-func TestContext_ProcessNode(t *testing.T) {
-	// make sure we're nil safe IDE will complain about the non nil check
-	defer func() {
-		if r := recover(); r != nil {
-			t.Fatal("panic on nil node info in processNodes test")
-		}
-	}()
-	context := createTestContext(t, pName)
+// func TestContext_ProcessNode(t *testing.T) {
+// 	// make sure we're nil safe IDE will complain about the non nil check
+// 	defer func() {
+// 		if r := recover(); r != nil {
+// 			t.Fatal("panic on nil node info in processNodes test")
+// 		}
+// 	}()
+// 	context := createTestContext(t, pName)
 
-	request := &si.NodeRequest{
-		Nodes: []*si.NodeInfo{
-			nil,
-			{NodeID: "test-1", Action: si.NodeInfo_CREATE, Attributes: map[string]string{"si/node-partition": pName}},
-		},
-	}
-	context.processNodes(request)
-	node := context.GetNode("test-1", pName)
-	if node == nil {
-		t.Fatalf("expected node to be added skipping nil node in list")
-	}
-}
+// 	request := &si.NodeRequest{
+// 		Nodes: []*si.NodeInfo{
+// 			nil,
+// 			{NodeID: "test-1", Action: si.NodeInfo_CREATE, Attributes: map[string]string{"si/node-partition": pName}},
+// 		},
+// 	}
+// 	context.processNodes(request)
+// 	node := context.GetNode("test-1", pName)
+// 	if node == nil {
+// 		t.Fatalf("expected node to be added skipping nil node in list")
+// 	}
+// }
+// ### NOTE => To check if we could remove it.
 
 func TestContextUpdateNodeMetrics(t *testing.T) {
 	metrics.GetSchedulerMetrics().Reset()

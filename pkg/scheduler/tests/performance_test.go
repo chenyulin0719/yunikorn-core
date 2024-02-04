@@ -18,179 +18,168 @@
 
 package tests
 
-import (
-	"fmt"
-	"strconv"
-	"testing"
-	"time"
+// func benchmarkScheduling(b *testing.B, numNodes, numPods int) {
+// 	log.UpdateLoggingConfig(map[string]string{"log.level": "WARN"})
+// 	defer log.UpdateLoggingConfig(nil)
 
-	"gotest.tools/v3/assert"
+// 	// Start all tests
+// 	serviceContext := entrypoint.StartAllServices()
+// 	defer serviceContext.StopAll()
+// 	proxy := serviceContext.RMProxy
 
-	"github.com/apache/yunikorn-core/pkg/entrypoint"
-	"github.com/apache/yunikorn-core/pkg/log"
-	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
-)
+// 	// Register RM
+// 	configData := `
+// partitions:
+//   -
+//     name: default
+//     queues:
+//       - name: root
+//         submitacl: "*"
+//         queues:
+//           - name: a
+//             resources:
+//               guaranteed:
+//                 memory: 100000
+//                 vcore: 10000
+//           - name: b
+//             resources:
+//               guaranteed:
+//                 memory: 1000000
+//                 vcore: 10000
+// `
+// 	mockRM := newMockRMCallbackHandler()
 
-func benchmarkScheduling(b *testing.B, numNodes, numPods int) {
-	log.UpdateLoggingConfig(map[string]string{"log.level": "WARN"})
-	defer log.UpdateLoggingConfig(nil)
+// 	BuildInfoMap := make(map[string]string)
+// 	BuildInfoMap["k"] = "v"
 
-	// Start all tests
-	serviceContext := entrypoint.StartAllServices()
-	defer serviceContext.StopAll()
-	proxy := serviceContext.RMProxy
+// 	_, err := proxy.RegisterResourceManager(
+// 		&si.RegisterResourceManagerRequest{
+// 			RmID:        "rm:123",
+// 			PolicyGroup: "policygroup",
+// 			Version:     "0.0.2",
+// 			BuildInfo:   BuildInfoMap,
+// 			Config:      configData,
+// 			ExtraConfig: map[string]string{
+// 				"log.level": "WARN",
+// 			},
+// 		}, mockRM)
 
-	// Register RM
-	configData := `
-partitions:
-  -
-    name: default
-    queues:
-      - name: root
-        submitacl: "*"
-        queues:
-          - name: a
-            resources:
-              guaranteed:
-                memory: 100000
-                vcore: 10000
-          - name: b
-            resources:
-              guaranteed:
-                memory: 1000000
-                vcore: 10000
-`
-	mockRM := newMockRMCallbackHandler()
+// 	assert.NilError(b, err, "RegisterResourceManager failed")
 
-	BuildInfoMap := make(map[string]string)
-	BuildInfoMap["k"] = "v"
+// 	// Add two apps and wait for them to be accepted
+// 	err = proxy.UpdateApplication(&si.ApplicationRequest{
+// 		New:  newAddAppRequest(map[string]string{appID1: "root.a", appID2: "root.b"}),
+// 		RmID: "rm:123",
+// 	})
+// 	assert.NilError(b, err, "UpdateRequest application failed")
+// 	mockRM.waitForAcceptedApplication(b, appID1, 1000)
+// 	mockRM.waitForAcceptedApplication(b, appID2, 1000)
 
-	_, err := proxy.RegisterResourceManager(
-		&si.RegisterResourceManagerRequest{
-			RmID:        "rm:123",
-			PolicyGroup: "policygroup",
-			Version:     "0.0.2",
-			BuildInfo:   BuildInfoMap,
-			Config:      configData,
-			ExtraConfig: map[string]string{
-				"log.level": "WARN",
-			},
-		}, mockRM)
+// 	// Calculate node resources to make sure all required pods can be allocated
+// 	requestMem := 10
+// 	requestVcore := 1
+// 	numPodsPerNode := numPods/numNodes + 1
+// 	nodeMem := requestMem * numPodsPerNode
+// 	nodeVcore := requestVcore * numPodsPerNode
 
-	assert.NilError(b, err, "RegisterResourceManager failed")
+// 	// Register nodes
+// 	var newNodes []*si.NodeInfo
+// 	for i := 0; i < numNodes; i++ {
+// 		nodeName := "node-" + strconv.Itoa(i)
+// 		node := &si.NodeInfo{
+// 			NodeID:     nodeName + ":1234",
+// 			Attributes: map[string]string{},
+// 			SchedulableResource: &si.Resource{
+// 				Resources: map[string]*si.Quantity{
+// 					"memory": {Value: int64(nodeMem)},
+// 					"vcore":  {Value: int64(nodeVcore)},
+// 				},
+// 			},
+// 			Action: si.NodeInfo_CREATE,
+// 		}
+// 		newNodes = append(newNodes, node)
+// 	}
+// 	err = proxy.UpdateNode(&si.NodeRequest{
+// 		RmID:  "rm:123",
+// 		Nodes: newNodes,
+// 	})
+// 	assert.NilError(b, err, "NodeRequest nodes failed")
 
-	// Add two apps and wait for them to be accepted
-	err = proxy.UpdateApplication(&si.ApplicationRequest{
-		New:  newAddAppRequest(map[string]string{appID1: "root.a", appID2: "root.b"}),
-		RmID: "rm:123",
-	})
-	assert.NilError(b, err, "UpdateRequest application failed")
-	mockRM.waitForAcceptedApplication(b, appID1, 1000)
-	mockRM.waitForAcceptedApplication(b, appID2, 1000)
+// 	// Wait for all nodes to be accepted
+// 	startTime := time.Now()
+// 	mockRM.waitForMinAcceptedNodes(b, numNodes, 5000)
+// 	duration := time.Since(startTime)
+// 	b.Logf("Total time to add %d node in %s, %f per second", numNodes, duration, float64(numNodes)/duration.Seconds())
 
-	// Calculate node resources to make sure all required pods can be allocated
-	requestMem := 10
-	requestVcore := 1
-	numPodsPerNode := numPods/numNodes + 1
-	nodeMem := requestMem * numPodsPerNode
-	nodeVcore := requestVcore * numPodsPerNode
+// 	// Request pods
+// 	app1NumPods := numPods / 2
+// 	err = proxy.UpdateAllocation(&si.AllocationRequest{
+// 		Asks: []*si.AllocationAsk{
+// 			{
+// 				AllocationKey: "alloc-1",
+// 				ResourceAsk: &si.Resource{
+// 					Resources: map[string]*si.Quantity{
+// 						"memory": {Value: int64(requestMem)},
+// 						"vcore":  {Value: int64(requestVcore)},
+// 					},
+// 				},
+// 				MaxAllocations: int32(app1NumPods),
+// 				ApplicationID:  appID1,
+// 			},
+// 		},
+// 		RmID: "rm:123",
+// 	})
+// 	if err != nil {
+// 		b.Error(err.Error())
+// 	}
 
-	// Register nodes
-	var newNodes []*si.NodeInfo
-	for i := 0; i < numNodes; i++ {
-		nodeName := "node-" + strconv.Itoa(i)
-		node := &si.NodeInfo{
-			NodeID:     nodeName + ":1234",
-			Attributes: map[string]string{},
-			SchedulableResource: &si.Resource{
-				Resources: map[string]*si.Quantity{
-					"memory": {Value: int64(nodeMem)},
-					"vcore":  {Value: int64(nodeVcore)},
-				},
-			},
-			Action: si.NodeInfo_CREATE,
-		}
-		newNodes = append(newNodes, node)
-	}
-	err = proxy.UpdateNode(&si.NodeRequest{
-		RmID:  "rm:123",
-		Nodes: newNodes,
-	})
-	assert.NilError(b, err, "NodeRequest nodes failed")
+// 	err = proxy.UpdateAllocation(&si.AllocationRequest{
+// 		Asks: []*si.AllocationAsk{
+// 			{
+// 				AllocationKey: "alloc-1",
+// 				ResourceAsk: &si.Resource{
+// 					Resources: map[string]*si.Quantity{
+// 						"memory": {Value: int64(requestMem)},
+// 						"vcore":  {Value: int64(requestVcore)},
+// 					},
+// 				},
+// 				MaxAllocations: int32(numPods - app1NumPods),
+// 				ApplicationID:  appID2,
+// 			},
+// 		},
+// 		RmID: "rm:123",
+// 	})
+// 	if err != nil {
+// 		b.Error(err.Error())
+// 	}
 
-	// Wait for all nodes to be accepted
-	startTime := time.Now()
-	mockRM.waitForMinAcceptedNodes(b, numNodes, 5000)
-	duration := time.Since(startTime)
-	b.Logf("Total time to add %d node in %s, %f per second", numNodes, duration, float64(numNodes)/duration.Seconds())
+// 	// Reset  timer for this benchmark
+// 	startTime = time.Now()
+// 	b.ResetTimer()
 
-	// Request pods
-	app1NumPods := numPods / 2
-	err = proxy.UpdateAllocation(&si.AllocationRequest{
-		Asks: []*si.AllocationAsk{
-			{
-				AllocationKey: "alloc-1",
-				ResourceAsk: &si.Resource{
-					Resources: map[string]*si.Quantity{
-						"memory": {Value: int64(requestMem)},
-						"vcore":  {Value: int64(requestVcore)},
-					},
-				},
-				MaxAllocations: int32(app1NumPods),
-				ApplicationID:  appID1,
-			},
-		},
-		RmID: "rm:123",
-	})
-	if err != nil {
-		b.Error(err.Error())
-	}
+// 	// Wait for all pods to be allocated
+// 	mockRM.waitForMinAllocations(b, numPods, 300000)
 
-	err = proxy.UpdateAllocation(&si.AllocationRequest{
-		Asks: []*si.AllocationAsk{
-			{
-				AllocationKey: "alloc-1",
-				ResourceAsk: &si.Resource{
-					Resources: map[string]*si.Quantity{
-						"memory": {Value: int64(requestMem)},
-						"vcore":  {Value: int64(requestVcore)},
-					},
-				},
-				MaxAllocations: int32(numPods - app1NumPods),
-				ApplicationID:  appID2,
-			},
-		},
-		RmID: "rm:123",
-	})
-	if err != nil {
-		b.Error(err.Error())
-	}
+// 	// Stop timer and calculate duration
+// 	b.StopTimer()
+// 	duration = time.Since(startTime)
 
-	// Reset  timer for this benchmark
-	startTime = time.Now()
-	b.ResetTimer()
+// 	b.Logf("Total time to allocate %d containers in %s, %f per second", numPods, duration, float64(numPods)/duration.Seconds())
+// }
+// ### NOTE =>  To bring this function back
 
-	// Wait for all pods to be allocated
-	mockRM.waitForMinAllocations(b, numPods, 300000)
-
-	// Stop timer and calculate duration
-	b.StopTimer()
-	duration = time.Since(startTime)
-
-	b.Logf("Total time to allocate %d containers in %s, %f per second", numPods, duration, float64(numPods)/duration.Seconds())
-}
-
-func BenchmarkScheduling(b *testing.B) {
-	tests := []struct{ numNodes, numPods int }{
-		{numNodes: 500, numPods: 10000},
-		{numNodes: 1000, numPods: 10000},
-		{numNodes: 2000, numPods: 10000},
-		{numNodes: 5000, numPods: 10000},
-	}
-	for _, test := range tests {
-		name := fmt.Sprintf("%vNodes/%vPods", test.numNodes, test.numPods)
-		b.Run(name, func(b *testing.B) {
-			benchmarkScheduling(b, test.numNodes, test.numPods)
-		})
-	}
-}
+// func BenchmarkScheduling(b *testing.B) {
+// 	tests := []struct{ numNodes, numPods int }{
+// 		{numNodes: 500, numPods: 10000},
+// 		{numNodes: 1000, numPods: 10000},
+// 		{numNodes: 2000, numPods: 10000},
+// 		{numNodes: 5000, numPods: 10000},
+// 	}
+// 	for _, test := range tests {
+// 		name := fmt.Sprintf("%vNodes/%vPods", test.numNodes, test.numPods)
+// 		b.Run(name, func(b *testing.B) {
+// 			benchmarkScheduling(b, test.numNodes, test.numPods)
+// 		})
+// 	}
+// }
+// ### NOTE =>  To bring this function back
