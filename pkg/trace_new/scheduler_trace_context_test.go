@@ -19,6 +19,7 @@
 package trace_new
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -32,9 +33,15 @@ func TestSchedulerTraceContextImpl(t *testing.T) {
 	// closeTracer, closer1, err := NewConstTracer("close-tracer", false)
 	// assert.NilError(t, err)
 	// defer closer1.Close()
-	openTracer, closer2, err := NewConstTracer("open-tracer", true)
-	assert.NilError(t, err)
-	defer closer2.Close()
+	// openTracer, closer2, err := NewConstTracer("open-tracer", true)
+	// assert.NilError(t, err)
+	// defer closer2.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	spanctx, span := NewDefaultTracer("open-tracer").Start(ctx, "format-string")
+	defer span.End()
 
 	type fields struct {
 		Tracer       opentracing.Tracer
