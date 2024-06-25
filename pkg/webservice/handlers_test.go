@@ -43,6 +43,7 @@ import (
 	"github.com/apache/yunikorn-core/pkg/metrics/history"
 	"github.com/apache/yunikorn-core/pkg/scheduler"
 	"github.com/apache/yunikorn-core/pkg/scheduler/objects"
+	"github.com/apache/yunikorn-core/pkg/scheduler/placement/types"
 	"github.com/apache/yunikorn-core/pkg/scheduler/policies"
 	"github.com/apache/yunikorn-core/pkg/scheduler/ugm"
 	"github.com/apache/yunikorn-core/pkg/webservice/dao"
@@ -50,9 +51,12 @@ import (
 	"github.com/apache/yunikorn-scheduler-interface/lib/go/si"
 )
 
-const unmarshalError = "Failed to unmarshal error response from response body"
-const statusCodeError = "Incorrect Status code"
-const jsonMessageError = "JSON error message is incorrect"
+const (
+	unmarshalError   = "Failed to unmarshal error response from response body"
+	statusCodeError  = "Incorrect Status code"
+	jsonMessageError = "JSON error message is incorrect"
+	httpRequestError = "HTTP request creation failed"
+)
 
 const partitionNameWithoutClusterID = "default"
 const normalizedPartitionName = "[rm-123]default"
@@ -67,6 +71,7 @@ partitions:
           first: "some value with spaces"
           second: somethingElse
 `
+
 const updatedConf = `
 partitions:
   - name: default
@@ -127,6 +132,7 @@ partitions:
             name: default
             submitacl: "*"
 `
+
 const configTwoLevelQueues = `
 partitions: 
   - 
@@ -245,6 +251,27 @@ partitions:
                     - testgroup
                   maxresources:
                     cpu: "200"
+`
+
+const placementRuleConfig = `
+partitions:
+    - name: default
+      placementrules:
+      - name: user
+      - name: tag
+        value: namespace
+        create: true
+        parent:
+          name: fixed
+          value: root.namespaces
+      - name: fixed
+        value: root.default
+      queues:
+        - name: root
+          parent: true
+          submitacl: '*'
+          queues:
+            - name: default
 `
 
 const rmID = "rm-123"
@@ -1214,11 +1241,11 @@ func TestGetPartitionQueuesHandler(t *testing.T) {
 	// test invalid queue name
 	req, err = http.NewRequest("GET", "/ws/v1/partition/default/queue/root.a", strings.NewReader(""))
 	assert.NilError(t, err, "HTTP request create failed")
-	req = req.WithContext(context.WithValue(req.Context(), httprouter.ParamsKey, httprouter.Params{httprouter.Param{Key: "partition", Value: "default"}, httprouter.Param{Key: "queue", Value: "root.notexists@"}}))
+	req = req.WithContext(context.WithValue(req.Context(), httprouter.ParamsKey, httprouter.Params{httprouter.Param{Key: "partition", Value: "default"}, httprouter.Param{Key: "queue", Value: "root.notexists!"}}))
 	assert.NilError(t, err)
 	resp = &MockResponseWriter{}
 	getPartitionQueue(resp, req)
-	assertQueueInvalid(t, resp, "root.notexists@", "notexists@")
+	assertQueueInvalid(t, resp, "root.notexists!", "notexists!")
 
 	// test queue is not exists
 	req, err = http.NewRequest("GET", "/ws/v1/partition/default/queue/root.a", strings.NewReader(""))
@@ -1371,7 +1398,7 @@ func addAppWithUserGroup(t *testing.T, id string, part *scheduler.PartitionConte
 		currentCount := len(part.GetCompletedApplications())
 		err = app.HandleApplicationEvent(objects.CompleteApplication)
 		assert.NilError(t, err, "The app should have completed")
-		err = common.WaitFor(10*time.Millisecond, time.Second, func() bool {
+		err = common.WaitForCondition(10*time.Millisecond, time.Second, func() bool {
 			newCount := len(part.GetCompletedApplications())
 			return newCount == currentCount+1
 		})
@@ -1669,13 +1696,13 @@ func TestGetApplicationHandler(t *testing.T) {
 	assert.NilError(t, err, "HTTP request create failed")
 	req5 = req5.WithContext(context.WithValue(req.Context(), httprouter.ParamsKey, httprouter.Params{
 		httprouter.Param{Key: "partition", Value: partitionNameWithoutClusterID},
-		httprouter.Param{Key: "queue", Value: "root.test.test123@"},
+		httprouter.Param{Key: "queue", Value: "root.test.test123!"},
 		httprouter.Param{Key: "application", Value: "app-1"},
 	}))
 	assert.NilError(t, err, "Get Application Handler request failed")
 	resp5 := &MockResponseWriter{}
 	getApplication(resp5, req5)
-	assertQueueInvalid(t, resp5, "root.test.test123@", "test123@")
+	assertQueueInvalid(t, resp5, "root.test.test123!", "test123!")
 
 	// test missing params name
 	req, err = http.NewRequest("GET", "/ws/v1/partition/default/queue/root.default/application/app-1", strings.NewReader(""))
@@ -1717,7 +1744,7 @@ func assertQueueInvalid(t *testing.T, resp *MockResponseWriter, invalidQueuePath
 	err := json.Unmarshal(resp.outputBytes, &errInfo)
 	assert.NilError(t, err, unmarshalError)
 	assert.Equal(t, http.StatusBadRequest, resp.statusCode, statusCodeError)
-	assert.Equal(t, errInfo.Message, "problem in queue query parameter parsing as queue param "+invalidQueuePath+" contains invalid queue name "+invalidQueueName+". Queue name must only have alphanumeric characters, - or _, and be no longer than 64 characters except the recovery queue root.@recovery@", jsonMessageError)
+	assert.Equal(t, errInfo.Message, common.InvalidQueueName.Error(), jsonMessageError)
 	assert.Equal(t, errInfo.StatusCode, http.StatusBadRequest)
 }
 
@@ -1811,10 +1838,9 @@ func TestValidateQueue(t *testing.T) {
 	err := validateQueue("root.test.test123")
 	assert.NilError(t, err, "Queue path is correct but still throwing error.")
 
-	invalidQueuePath := "root.test.test123@"
-	invalidQueueName := "test123@"
+	invalidQueuePath := "root.test.test123!"
 	err1 := validateQueue(invalidQueuePath)
-	assert.Error(t, err1, "problem in queue query parameter parsing as queue param "+invalidQueuePath+" contains invalid queue name "+invalidQueueName+". Queue name must only have alphanumeric characters, - or _, and be no longer than 64 characters except the recovery queue root.@recovery@")
+	assert.Error(t, err1, common.InvalidQueueName.Error())
 
 	err2 := validateQueue("root")
 	assert.NilError(t, err2, "Queue path is correct but still throwing error.")
@@ -1852,7 +1878,8 @@ func TestFullStateDumpPath(t *testing.T) {
 	var aggregated AggregatedStateInfo
 	err = json.Unmarshal(resp.outputBytes, &aggregated)
 	assert.NilError(t, err)
-	verifyStateDumpJSON(t, &aggregated)
+	// default config has only one partition
+	verifyStateDumpJSON(t, &aggregated, 1)
 }
 
 func TestSpecificUserAndGroupResourceUsage(t *testing.T) {
@@ -2036,6 +2063,11 @@ func TestGetEvents(t *testing.T) {
 	checkIllegalBatchRequest(t, "count=0", `0 is not a valid value for "count`)
 	checkIllegalBatchRequest(t, "start=xyz", `strconv.ParseUint: parsing "xyz": invalid syntax`)
 	checkIllegalBatchRequest(t, "start=-100", `strconv.ParseUint: parsing "-100": invalid syntax`)
+
+	// "count" too high
+	maxRESTResponseSize.Store(1)
+	defer maxRESTResponseSize.Store(configs.DefaultRESTResponseSize)
+	checkSingleEvent(t, appEvent, "count=3")
 }
 
 func TestGetEventsWhenTrackingDisabled(t *testing.T) {
@@ -2275,7 +2307,7 @@ func TestGetStream_Limit(t *testing.T) {
 	go getStream(NewResponseRecorderWithDeadline(), req)
 
 	// wait until the StreamingLimiter.AddHost() calls
-	err := common.WaitFor(time.Millisecond, time.Second, func() bool {
+	err := common.WaitForCondition(time.Millisecond, time.Second, func() bool {
 		streamingLimiter.Lock()
 		defer streamingLimiter.Unlock()
 		return streamingLimiter.streams == 3
@@ -2398,7 +2430,7 @@ func addEvents(t *testing.T) (appEvent, nodeEvent, queueEvent *si.EventRecord) {
 	}
 	ev.AddEvent(queueEvent)
 	noEvents := uint64(0)
-	err := common.WaitFor(10*time.Millisecond, time.Second, func() bool {
+	err := common.WaitForCondition(10*time.Millisecond, time.Second, func() bool {
 		noEvents = ev.Store.CountStoredEvents()
 		return noEvents == 3
 	})
@@ -2523,15 +2555,18 @@ func clearUserManager() {
 	userManager.ClearGroupTrackers()
 }
 
-func verifyStateDumpJSON(t *testing.T, aggregated *AggregatedStateInfo) {
+func verifyStateDumpJSON(t *testing.T, aggregated *AggregatedStateInfo, partitionCount int) {
 	assert.Check(t, aggregated.Timestamp != 0)
-	assert.Check(t, len(aggregated.Partitions) > 0)
+	assert.Check(t, len(aggregated.Partitions) == partitionCount, "incorrect partition count")
 	assert.Check(t, len(aggregated.Nodes) > 0)
 	assert.Check(t, len(aggregated.ClusterInfo) > 0)
-	assert.Check(t, len(aggregated.Queues) > 0)
+	assert.Check(t, len(aggregated.Queues) == 1, "should only have root queue")
 	assert.Check(t, len(aggregated.LogLevel) > 0)
-	assert.Check(t, len(aggregated.Config.SchedulerConfig.Partitions) > 0)
+	assert.Check(t, len(aggregated.Config.SchedulerConfig.Partitions) == partitionCount, "incorrect partition count")
 	assert.Check(t, len(aggregated.Config.Extra) > 0)
+	assert.Check(t, aggregated.RMDiagnostics["empty"] != nil, "expected no RM registered for diagnostics")
+	assert.Check(t, len(aggregated.PlacementRules) == partitionCount, "incorrect partition count")
+	assert.Check(t, len(aggregated.PlacementRules[0].Rules) == 2, "incorrect rule count")
 }
 
 func TestCheckHealthStatusNotFound(t *testing.T) {
@@ -2596,6 +2631,86 @@ func runHealthCheckTest(t *testing.T, expected *dao.SchedulerHealthDAOInfo) {
 		assert.Equal(t, expectedHealthCheck.Description, actualHealthCheck.Description)
 		assert.Equal(t, expectedHealthCheck.DiagnosisMessage, actualHealthCheck.DiagnosisMessage)
 	}
+}
+
+func TestGetPartitionRuleHandler(t *testing.T) {
+	setup(t, configDefault, 1)
+
+	NewWebApp(schedulerContext, nil)
+
+	// test partition not exists
+	req, err := http.NewRequest("GET", "/ws/v1/partition/default/placementrules", strings.NewReader(""))
+	assert.NilError(t, err, httpRequestError)
+	req = req.WithContext(context.WithValue(req.Context(), httprouter.ParamsKey, httprouter.Params{httprouter.Param{Key: "partition", Value: "notexists"}}))
+	resp := &MockResponseWriter{}
+	getPartitionRules(resp, req)
+	assertPartitionNotExists(t, resp)
+
+	// test params name missing
+	req, err = http.NewRequest("GET", "/ws/v1/partition/default/placementrules", strings.NewReader(""))
+	assert.NilError(t, err, httpRequestError)
+	resp = &MockResponseWriter{}
+	getPartitionRules(resp, req)
+	assertParamsMissing(t, resp)
+
+	// default config without rules defined
+	req, err = http.NewRequest("GET", "/ws/v1/partition/default/placementrules", strings.NewReader(""))
+	assert.NilError(t, err, httpRequestError)
+	req = req.WithContext(context.WithValue(req.Context(), httprouter.ParamsKey, httprouter.Params{httprouter.Param{Key: "partition", Value: partitionNameWithoutClusterID}}))
+	var partitionRules []*dao.RuleDAO
+	resp = &MockResponseWriter{}
+	getPartitionRules(resp, req)
+	err = json.Unmarshal(resp.outputBytes, &partitionRules)
+	assert.NilError(t, err, unmarshalError)
+	// assert content: default is provided and recovery
+	assert.Equal(t, len(partitionRules), 2)
+	assert.Equal(t, partitionRules[0].Name, types.Provided)
+	assert.Equal(t, partitionRules[1].Name, types.Recovery)
+
+	// change the config: 3 rules, expect recovery also
+	err = schedulerContext.UpdateRMSchedulerConfig(rmID, []byte(placementRuleConfig))
+	assert.NilError(t, err, "Error when updating clusterInfo from config")
+	req, err = http.NewRequest("GET", "/ws/v1/partition/default/placementrules", strings.NewReader(""))
+	assert.NilError(t, err, httpRequestError)
+	req = req.WithContext(context.WithValue(req.Context(), httprouter.ParamsKey, httprouter.Params{httprouter.Param{Key: "partition", Value: partitionNameWithoutClusterID}}))
+	resp = &MockResponseWriter{}
+	getPartitionRules(resp, req)
+	err = json.Unmarshal(resp.outputBytes, &partitionRules)
+	assert.NilError(t, err, unmarshalError)
+	assert.Equal(t, len(partitionRules), 4)
+	assert.Equal(t, partitionRules[0].Name, types.User)
+	assert.Equal(t, partitionRules[1].Name, types.Tag)
+	assert.Equal(t, partitionRules[1].ParentRule.Name, types.Fixed)
+	assert.Equal(t, partitionRules[2].Name, types.Fixed)
+	assert.Equal(t, partitionRules[3].Name, types.Recovery)
+}
+
+func TestSetMaxRESTResponseSize(t *testing.T) {
+	current := configs.GetConfigMap()
+	defer configs.SetConfigMap(current)
+
+	configs.SetConfigMap(map[string]string{
+		configs.CMRESTResponseSize: "1234",
+	})
+	assert.Equal(t, uint64(1234), maxRESTResponseSize.Load())
+
+	configs.SetConfigMap(map[string]string{})
+	assert.Equal(t, uint64(10000), maxRESTResponseSize.Load())
+
+	configs.SetConfigMap(map[string]string{
+		configs.CMRESTResponseSize: "xyz",
+	})
+	assert.Equal(t, uint64(10000), maxRESTResponseSize.Load())
+
+	configs.SetConfigMap(map[string]string{
+		configs.CMRESTResponseSize: "0",
+	})
+	assert.Equal(t, uint64(10000), maxRESTResponseSize.Load())
+
+	configs.SetConfigMap(map[string]string{
+		configs.CMRESTResponseSize: "-1",
+	})
+	assert.Equal(t, uint64(10000), maxRESTResponseSize.Load())
 }
 
 type ResponseRecorderWithDeadline struct {

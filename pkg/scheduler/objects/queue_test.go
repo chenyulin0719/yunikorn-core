@@ -1697,7 +1697,7 @@ func TestFindEligiblePreemptionVictims(t *testing.T) {
 
 	// verify no victims when no allocations exist
 	snapshot := leaf1.FindEligiblePreemptionVictims(leaf1.QueuePath, ask)
-	assert.Equal(t, 3, len(snapshot), "wrong snapshot count") // leaf1, parent1, root
+	assert.Equal(t, 5, len(snapshot), "wrong snapshot count") // leaf1, parent1, root
 	assert.Equal(t, 0, len(victims(snapshot)), "found victims")
 
 	// add two lower-priority allocs in leaf2
@@ -2192,7 +2192,7 @@ func TestNewDynamicQueue(t *testing.T) {
 	assert.Equal(t, childLeaf.preemptionPolicy, policies.DefaultPreemptionPolicy)
 
 	// case 1: non-leaf can't use template but it can inherit template from parent
-	childNonLeaf, err := NewDynamicQueue("nonleaf", false, parent)
+	childNonLeaf, err := NewDynamicQueue("nonleaf_Test-a_b_#_c_#_d_/_e@dom:ain", false, parent)
 	assert.NilError(t, err, "failed to create dynamic queue: %v", err)
 	assert.Assert(t, reflect.DeepEqual(childNonLeaf.template, parent.template))
 	assert.Equal(t, len(childNonLeaf.properties), 0)
@@ -2201,6 +2201,12 @@ func TestNewDynamicQueue(t *testing.T) {
 	assert.Assert(t, childNonLeaf.prioritySortEnabled)
 	assert.Equal(t, childNonLeaf.priorityPolicy, policies.DefaultPriorityPolicy)
 	assert.Equal(t, childNonLeaf.preemptionPolicy, policies.DefaultPreemptionPolicy)
+
+	// case 2: invalid queue name
+	_, err = NewDynamicQueue("invalid!queue", false, parent)
+	if err == nil {
+		t.Errorf("new dynamic queue should have failed to create, err is %v", err)
+	}
 }
 
 func TestTemplateIsNotOverrideByParent(t *testing.T) {
@@ -2459,7 +2465,7 @@ func TestQueueEvents(t *testing.T) {
 	queue.AddApplication(app)
 	queue.RemoveApplication(app)
 	noEvents := uint64(0)
-	err = common.WaitFor(10*time.Millisecond, time.Second, func() bool {
+	err = common.WaitForCondition(10*time.Millisecond, time.Second, func() bool {
 		noEvents = eventSystem.Store.CountStoredEvents()
 		return noEvents == 5
 	})
@@ -2488,7 +2494,7 @@ func TestQueueEvents(t *testing.T) {
 	}
 	err = queue.ApplyConf(newConf)
 	assert.NilError(t, err)
-	err = common.WaitFor(10*time.Millisecond, time.Second, func() bool {
+	err = common.WaitForCondition(10*time.Millisecond, time.Second, func() bool {
 		noEvents = eventSystem.Store.CountStoredEvents()
 		return noEvents == 3
 	})
