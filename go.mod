@@ -33,6 +33,7 @@ require (
 	github.com/prometheus/common v0.67.5
 	github.com/sasha-s/go-deadlock v0.3.9
 	github.com/tidwall/btree v1.8.1
+	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.27.1
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90
