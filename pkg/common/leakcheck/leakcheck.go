@@ -65,8 +65,10 @@ func options() []goleak.Option {
 		// Event publisher (eventPublisher.start). See YUNIKORN-3363.
 		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/events.(*eventPublisher).start.func1"),
 
-		// Event stream forwarder (EventStreaming.CreateEventStream). See YUNIKORN-3364.
-		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/events.(*EventStreaming).CreateEventStream.func1"),
+		// NOTE (demo branch): the CreateEventStream.func1 exemption is deliberately
+		// removed here so `go test ./pkg/events/...` surfaces the remaining leak
+		// directly instead of silently passing. Not a suggested permanent change —
+		// see YUNIKORN-3372 / YUNIKORN-3364.
 
 		// Partition queue cleaner (partitionManager.Run). See YUNIKORN-3366.
 		goleak.IgnoreTopFunction("github.com/apache/yunikorn-core/pkg/scheduler.(*partitionManager).cleanRoot"),
